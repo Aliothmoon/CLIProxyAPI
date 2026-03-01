@@ -562,3 +562,197 @@ func jsonPayload(line []byte) []byte {
 	}
 	return trimmed
 }
+
+// ---------------------------------------------------------------------------
+// Optimized variants — drop-in replacements for the functions above.
+// Optimizations:
+//   - Single-line payloads (most common) skip bytes.Split/Join entirely
+//   - One gjson.ParseBytes per data line; reuse root for all field accesses
+//   - Merged isStopChunkWithoutUsage + hasUsageMetadata + StripUsageMetadata
+//     logic into processDataJSONOptimized to avoid 4-6 redundant GetBytes
+// ---------------------------------------------------------------------------
+
+// FilterSSEUsageMetadataOptimized is a drop-in replacement for
+// FilterSSEUsageMetadata with reduced allocations.
+func FilterSSEUsageMetadataOptimized(payload []byte) []byte {
+	if len(payload) == 0 {
+		return payload
+	}
+
+	// Fast path: no newline → single-line chunk (most common for per-line scanners).
+	// Avoids bytes.Split / bytes.Join entirely.
+	if bytes.IndexByte(payload, '\n') < 0 {
+		return filterSSESingleLine(payload)
+	}
+
+	// Multi-line fallback with optimised per-line processing.
+	lines := bytes.Split(payload, []byte("\n"))
+	modified := false
+	foundData := false
+	for idx, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 || !bytes.HasPrefix(trimmed, []byte("data:")) {
+			continue
+		}
+		foundData = true
+		dataIdx := bytes.Index(line, []byte("data:"))
+		if dataIdx < 0 {
+			continue
+		}
+		rawJSON := bytes.TrimSpace(line[dataIdx+5:])
+		rebuilt, changed := processDataJSONOptimized(rawJSON)
+		if !changed {
+			continue
+		}
+		var newLine []byte
+		newLine = append(newLine, line[:dataIdx]...)
+		newLine = append(newLine, []byte("data:")...)
+		if len(rebuilt) > 0 {
+			newLine = append(newLine, ' ')
+			newLine = append(newLine, rebuilt...)
+		}
+		lines[idx] = newLine
+		modified = true
+	}
+	if !modified {
+		if !foundData {
+			trimmed := bytes.TrimSpace(payload)
+			cleaned, changed := stripUsageOptimized(trimmed)
+			if !changed {
+				return payload
+			}
+			return cleaned
+		}
+		return payload
+	}
+	return bytes.Join(lines, []byte("\n"))
+}
+
+// filterSSESingleLine handles a payload that contains no newline character.
+func filterSSESingleLine(payload []byte) []byte {
+	trimmed := bytes.TrimSpace(payload)
+	if len(trimmed) == 0 {
+		return payload
+	}
+	if !bytes.HasPrefix(trimmed, []byte("data:")) {
+		// Raw JSON without SSE data: prefix.
+		cleaned, changed := stripUsageOptimized(trimmed)
+		if !changed {
+			return payload
+		}
+		return cleaned
+	}
+	dataIdx := bytes.Index(payload, []byte("data:"))
+	if dataIdx < 0 {
+		return payload
+	}
+	rawJSON := bytes.TrimSpace(payload[dataIdx+5:])
+	rebuilt, changed := processDataJSONOptimized(rawJSON)
+	if !changed {
+		return payload
+	}
+	var result []byte
+	result = append(result, payload[:dataIdx]...)
+	result = append(result, []byte("data: ")...)
+	result = append(result, rebuilt...)
+	return result
+}
+
+// processDataJSONOptimized merges traceId lookup, isStopChunkWithoutUsage,
+// hasUsageMetadata, and StripUsageMetadataFromJSON into one gjson.ParseBytes
+// pass (replaces 4-6 redundant GetBytes calls per line).
+func processDataJSONOptimized(rawJSON []byte) ([]byte, bool) {
+	if len(rawJSON) == 0 || rawJSON[0] != '{' {
+		return rawJSON, false
+	}
+	root := gjson.ParseBytes(rawJSON)
+
+	traceID := root.Get("traceId").String()
+
+	// finishReason (aistudio or antigravity format)
+	finishReason := root.Get("candidates.0.finishReason")
+	if !finishReason.Exists() {
+		finishReason = root.Get("response.candidates.0.finishReason")
+	}
+	hasFinish := finishReason.Exists() && strings.TrimSpace(finishReason.String()) != ""
+
+	// usageMetadata (root or nested under response)
+	usage := root.Get("usageMetadata")
+	responseUsage := root.Get("response.usageMetadata")
+	hasUsage := usage.Exists() || responseUsage.Exists()
+
+	// isStopChunkWithoutUsage equivalent
+	if hasFinish && !hasUsage && traceID != "" {
+		rememberStopWithoutUsage(traceID)
+		return rawJSON, false
+	}
+
+	// Check remembered stop chunks
+	if traceID != "" {
+		if _, ok := stopChunkWithoutUsage.Load(traceID); ok && hasUsage {
+			stopChunkWithoutUsage.Delete(traceID)
+			return rawJSON, false
+		}
+	}
+
+	// Terminal chunk — keep as-is
+	if hasFinish {
+		return rawJSON, false
+	}
+	// Nothing to strip
+	if !hasUsage {
+		return rawJSON, false
+	}
+
+	// Rename usageMetadata → cpaUsageMetadata
+	cleaned := rawJSON
+	var changed bool
+	if usage.Exists() {
+		cleaned, _ = sjson.SetRawBytes(cleaned, "cpaUsageMetadata", []byte(usage.Raw))
+		cleaned, _ = sjson.DeleteBytes(cleaned, "usageMetadata")
+		changed = true
+	}
+	if responseUsage.Exists() {
+		cleaned, _ = sjson.SetRawBytes(cleaned, "response.cpaUsageMetadata", []byte(responseUsage.Raw))
+		cleaned, _ = sjson.DeleteBytes(cleaned, "response.usageMetadata")
+		changed = true
+	}
+	return cleaned, changed
+}
+
+// stripUsageOptimized is the non-SSE path (raw JSON without data: prefix).
+// One ParseBytes, no redundant validity checks.
+func stripUsageOptimized(rawJSON []byte) ([]byte, bool) {
+	if len(rawJSON) == 0 || rawJSON[0] != '{' {
+		return rawJSON, false
+	}
+	root := gjson.ParseBytes(rawJSON)
+
+	finishReason := root.Get("candidates.0.finishReason")
+	if !finishReason.Exists() {
+		finishReason = root.Get("response.candidates.0.finishReason")
+	}
+	if finishReason.Exists() && strings.TrimSpace(finishReason.String()) != "" {
+		return rawJSON, false
+	}
+
+	usage := root.Get("usageMetadata")
+	responseUsage := root.Get("response.usageMetadata")
+	if !usage.Exists() && !responseUsage.Exists() {
+		return rawJSON, false
+	}
+
+	cleaned := rawJSON
+	var changed bool
+	if usage.Exists() {
+		cleaned, _ = sjson.SetRawBytes(cleaned, "cpaUsageMetadata", []byte(usage.Raw))
+		cleaned, _ = sjson.DeleteBytes(cleaned, "usageMetadata")
+		changed = true
+	}
+	if responseUsage.Exists() {
+		cleaned, _ = sjson.SetRawBytes(cleaned, "response.cpaUsageMetadata", []byte(responseUsage.Raw))
+		cleaned, _ = sjson.DeleteBytes(cleaned, "response.usageMetadata")
+		changed = true
+	}
+	return cleaned, changed
+}

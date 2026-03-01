@@ -231,7 +231,8 @@ attemptLoop:
 		var lastErr error
 
 		for idx, baseURL := range baseURLs {
-			httpReq, errReq := e.buildRequest(ctx, auth, token, baseModel, translated, false, opts.Alt, baseURL)
+			// Optimized: []byte-mode geminiToAntigravity, no redundant model write
+			httpReq, errReq := e.buildRequestOptimized(ctx, auth, token, baseModel, translated, false, opts.Alt, baseURL)
 			if errReq != nil {
 				err = errReq
 				return resp, err
@@ -374,7 +375,8 @@ attemptLoop:
 		var lastErr error
 
 		for idx, baseURL := range baseURLs {
-			httpReq, errReq := e.buildRequest(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
+			// Optimized: []byte-mode geminiToAntigravity, no redundant model write
+			httpReq, errReq := e.buildRequestOptimized(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
 			if errReq != nil {
 				err = errReq
 				return resp, err
@@ -472,7 +474,8 @@ attemptLoop:
 
 					// Filter usage metadata for all models
 					// Only retain usage statistics in the terminal chunk
-					line = FilterSSEUsageMetadata(line)
+					// Optimized: single ParseBytes per line, skip Split/Join for single-line chunks
+					line = FilterSSEUsageMetadataOptimized(line)
 
 					payload := jsonPayload(line)
 					if payload == nil {
@@ -505,7 +508,8 @@ attemptLoop:
 					_, _ = buffer.Write([]byte("\n"))
 				}
 			}
-			resp = cliproxyexecutor.Response{Payload: e.convertStreamToNonStream(buffer.Bytes())}
+			// Optimized: eliminates json.Unmarshal/Marshal reflection; raw JSON concatenation
+			resp = cliproxyexecutor.Response{Payload: e.convertStreamToNonStreamOptimized(buffer.Bytes())}
 
 			reporter.publish(ctx, parseAntigravityUsage(resp.Payload))
 			var param any
@@ -769,7 +773,8 @@ attemptLoop:
 		var lastErr error
 
 		for idx, baseURL := range baseURLs {
-			httpReq, errReq := e.buildRequest(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
+			// Optimized: []byte-mode geminiToAntigravity, no redundant model write
+			httpReq, errReq := e.buildRequestOptimized(ctx, auth, token, baseModel, translated, true, opts.Alt, baseURL)
 			if errReq != nil {
 				err = errReq
 				return nil, err
@@ -867,7 +872,8 @@ attemptLoop:
 
 					// Filter usage metadata for all models
 					// Only retain usage statistics in the terminal chunk
-					line = FilterSSEUsageMetadata(line)
+					// Optimized: single ParseBytes per line, skip Split/Join for single-line chunks
+					line = FilterSSEUsageMetadataOptimized(line)
 
 					payload := jsonPayload(line)
 					if payload == nil {
@@ -1688,4 +1694,353 @@ func generateProjectID() string {
 	randSourceMutex.Unlock()
 	randomPart := strings.ToLower(uuid.NewString())[:5]
 	return adj + "-" + noun + "-" + randomPart
+}
+
+// ---------------------------------------------------------------------------
+// Optimized variants — drop-in replacements.
+// ---------------------------------------------------------------------------
+
+// convertStreamToNonStreamOptimized replaces convertStreamToNonStream.
+// Optimizations:
+//   - normalizePart: eliminates json.Unmarshal reflection; uses gjson field
+//     access + sjson key rename on Raw JSON directly
+//   - parts stored as []string (raw JSON) instead of []map[string]interface{}
+//   - final array built via strings.Builder instead of json.Marshal reflection
+func (e *AntigravityExecutor) convertStreamToNonStreamOptimized(stream []byte) []byte {
+	responseTemplate := ""
+	var traceID string
+	var finishReason string
+	var modelVersion string
+	var responseID string
+	var role string
+	var usageRaw string
+	parts := make([]string, 0)
+	var pendingKind string
+	var pendingText strings.Builder
+	var pendingThoughtSig string
+
+	flushPending := func() {
+		if pendingKind == "" {
+			return
+		}
+		text := pendingText.String()
+		switch pendingKind {
+		case "text":
+			if strings.TrimSpace(text) == "" {
+				pendingKind = ""
+				pendingText.Reset()
+				pendingThoughtSig = ""
+				return
+			}
+			raw, _ := sjson.Set("{}", "text", text)
+			parts = append(parts, raw)
+		case "thought":
+			if strings.TrimSpace(text) == "" && pendingThoughtSig == "" {
+				pendingKind = ""
+				pendingText.Reset()
+				pendingThoughtSig = ""
+				return
+			}
+			raw, _ := sjson.Set("{}", "thought", true)
+			raw, _ = sjson.Set(raw, "text", text)
+			if pendingThoughtSig != "" {
+				raw, _ = sjson.Set(raw, "thoughtSignature", pendingThoughtSig)
+			}
+			parts = append(parts, raw)
+		}
+		pendingKind = ""
+		pendingText.Reset()
+		pendingThoughtSig = ""
+	}
+
+	// normalizePartRaw replaces normalizePart: avoids json.Unmarshal reflection.
+	// Operates on Raw JSON via gjson reads + sjson key renames.
+	normalizePartRaw := func(partResult gjson.Result) string {
+		raw := partResult.Raw
+		// Rename thought_signature → thoughtSignature
+		sig := partResult.Get("thoughtSignature").String()
+		if sig == "" {
+			if ts := partResult.Get("thought_signature"); ts.Exists() {
+				raw, _ = sjson.Set(raw, "thoughtSignature", ts.String())
+				raw, _ = sjson.Delete(raw, "thought_signature")
+			}
+		}
+		// Rename inline_data → inlineData
+		if id := partResult.Get("inline_data"); id.Exists() {
+			raw, _ = sjson.SetRaw(raw, "inlineData", id.Raw)
+			raw, _ = sjson.Delete(raw, "inline_data")
+		}
+		return raw
+	}
+
+	for _, line := range bytes.Split(stream, []byte("\n")) {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 || !gjson.ValidBytes(trimmed) {
+			continue
+		}
+
+		root := gjson.ParseBytes(trimmed)
+		responseNode := root.Get("response")
+		if !responseNode.Exists() {
+			if root.Get("candidates").Exists() {
+				responseNode = root
+			} else {
+				continue
+			}
+		}
+		responseTemplate = responseNode.Raw
+
+		if traceResult := root.Get("traceId"); traceResult.Exists() && traceResult.String() != "" {
+			traceID = traceResult.String()
+		}
+
+		if roleResult := responseNode.Get("candidates.0.content.role"); roleResult.Exists() {
+			role = roleResult.String()
+		}
+
+		if finishResult := responseNode.Get("candidates.0.finishReason"); finishResult.Exists() && finishResult.String() != "" {
+			finishReason = finishResult.String()
+		}
+
+		if modelResult := responseNode.Get("modelVersion"); modelResult.Exists() && modelResult.String() != "" {
+			modelVersion = modelResult.String()
+		}
+		if responseIDResult := responseNode.Get("responseId"); responseIDResult.Exists() && responseIDResult.String() != "" {
+			responseID = responseIDResult.String()
+		}
+		if usageResult := responseNode.Get("usageMetadata"); usageResult.Exists() {
+			usageRaw = usageResult.Raw
+		} else if usageMetadataResult := root.Get("usageMetadata"); usageMetadataResult.Exists() {
+			usageRaw = usageMetadataResult.Raw
+		}
+
+		if partsResult := responseNode.Get("candidates.0.content.parts"); partsResult.IsArray() {
+			for _, part := range partsResult.Array() {
+				hasFunctionCall := part.Get("functionCall").Exists()
+				hasInlineData := part.Get("inlineData").Exists() || part.Get("inline_data").Exists()
+				sig := part.Get("thoughtSignature").String()
+				if sig == "" {
+					sig = part.Get("thought_signature").String()
+				}
+				text := part.Get("text").String()
+				thought := part.Get("thought").Bool()
+
+				if hasFunctionCall || hasInlineData {
+					flushPending()
+					parts = append(parts, normalizePartRaw(part))
+					continue
+				}
+
+				if thought || part.Get("text").Exists() {
+					kind := "text"
+					if thought {
+						kind = "thought"
+					}
+					if pendingKind != "" && pendingKind != kind {
+						flushPending()
+					}
+					pendingKind = kind
+					pendingText.WriteString(text)
+					if kind == "thought" && sig != "" {
+						pendingThoughtSig = sig
+					}
+					continue
+				}
+
+				flushPending()
+				parts = append(parts, normalizePartRaw(part))
+			}
+		}
+	}
+	flushPending()
+
+	if responseTemplate == "" {
+		responseTemplate = `{"candidates":[{"content":{"role":"model","parts":[]}}]}`
+	}
+
+	// Build parts JSON array via strings.Builder — replaces json.Marshal(parts)
+	var partsJSON strings.Builder
+	partsJSON.WriteByte('[')
+	for i, p := range parts {
+		if i > 0 {
+			partsJSON.WriteByte(',')
+		}
+		partsJSON.WriteString(p)
+	}
+	partsJSON.WriteByte(']')
+
+	responseTemplate, _ = sjson.SetRaw(responseTemplate, "candidates.0.content.parts", partsJSON.String())
+	if role != "" {
+		responseTemplate, _ = sjson.Set(responseTemplate, "candidates.0.content.role", role)
+	}
+	if finishReason != "" {
+		responseTemplate, _ = sjson.Set(responseTemplate, "candidates.0.finishReason", finishReason)
+	}
+	if modelVersion != "" {
+		responseTemplate, _ = sjson.Set(responseTemplate, "modelVersion", modelVersion)
+	}
+	if responseID != "" {
+		responseTemplate, _ = sjson.Set(responseTemplate, "responseId", responseID)
+	}
+	if usageRaw != "" {
+		responseTemplate, _ = sjson.SetRaw(responseTemplate, "usageMetadata", usageRaw)
+	} else if !gjson.Get(responseTemplate, "usageMetadata").Exists() {
+		responseTemplate, _ = sjson.Set(responseTemplate, "usageMetadata.promptTokenCount", 0)
+		responseTemplate, _ = sjson.Set(responseTemplate, "usageMetadata.candidatesTokenCount", 0)
+		responseTemplate, _ = sjson.Set(responseTemplate, "usageMetadata.totalTokenCount", 0)
+	}
+
+	output := `{"response":{},"traceId":""}`
+	output, _ = sjson.SetRaw(output, "response", responseTemplate)
+	if traceID != "" {
+		output, _ = sjson.Set(output, "traceId", traceID)
+	}
+	return []byte(output)
+}
+
+// geminiToAntigravityOptimized replaces geminiToAntigravity.
+// Optimizations:
+//   - Uses sjson.SetBytes / DeleteBytes throughout (stays in []byte mode),
+//     eliminating the string(payload) → []byte(template) round-trip.
+func geminiToAntigravityOptimized(modelName string, payload []byte, projectID string) []byte {
+	result, _ := sjson.SetBytes(payload, "model", modelName)
+	result, _ = sjson.SetBytes(result, "userAgent", "antigravity")
+	result, _ = sjson.SetBytes(result, "requestType", "agent")
+
+	if projectID != "" {
+		result, _ = sjson.SetBytes(result, "project", projectID)
+	} else {
+		result, _ = sjson.SetBytes(result, "project", generateProjectID())
+	}
+	result, _ = sjson.SetBytes(result, "requestId", generateRequestID())
+	// Use original payload for session ID stability (same as original function).
+	result, _ = sjson.SetBytes(result, "request.sessionId", generateStableSessionID(payload))
+
+	result, _ = sjson.DeleteBytes(result, "request.safetySettings")
+	if toolConfig := gjson.GetBytes(result, "toolConfig"); toolConfig.Exists() && !gjson.GetBytes(result, "request.toolConfig").Exists() {
+		result, _ = sjson.SetRawBytes(result, "request.toolConfig", []byte(toolConfig.Raw))
+		result, _ = sjson.DeleteBytes(result, "toolConfig")
+	}
+	return result
+}
+
+// buildRequestOptimized replaces buildRequest.
+// Optimizations:
+//   - geminiToAntigravityOptimized stays in []byte mode (no string↔bytes
+//     round-trip inside the helper)
+//   - Removes the redundant sjson.SetBytes(payload, "model", modelName) that
+//     duplicated the model write already done inside geminiToAntigravity
+//   - Single []byte → string conversion point for Walk/RenameKey/schema ops
+func (e *AntigravityExecutor) buildRequestOptimized(ctx context.Context, auth *cliproxyauth.Auth, token, modelName string, payload []byte, stream bool, alt, baseURL string) (*http.Request, error) {
+	if token == "" {
+		return nil, statusErr{code: http.StatusUnauthorized, msg: "missing access token"}
+	}
+
+	base := strings.TrimSuffix(baseURL, "/")
+	if base == "" {
+		base = buildBaseURL(auth)
+	}
+	path := antigravityGeneratePath
+	if stream {
+		path = antigravityStreamPath
+	}
+	var requestURL strings.Builder
+	requestURL.WriteString(base)
+	requestURL.WriteString(path)
+	if stream {
+		if alt != "" {
+			requestURL.WriteString("?$alt=")
+			requestURL.WriteString(url.QueryEscape(alt))
+		} else {
+			requestURL.WriteString("?alt=sse")
+		}
+	} else if alt != "" {
+		requestURL.WriteString("?$alt=")
+		requestURL.WriteString(url.QueryEscape(alt))
+	}
+
+	// Extract project_id from auth metadata if available
+	projectID := ""
+	if auth != nil && auth.Metadata != nil {
+		if pid, ok := auth.Metadata["project_id"].(string); ok {
+			projectID = strings.TrimSpace(pid)
+		}
+	}
+
+	// Optimized: stays in []byte mode; model already set inside — no redundant write.
+	payload = geminiToAntigravityOptimized(modelName, payload, projectID)
+
+	useAntigravitySchema := strings.Contains(modelName, "claude") || strings.Contains(modelName, "gemini-3-pro-high")
+	// Single []byte → string conversion for Walk/RenameKey/schema operations.
+	payloadStr := string(payload)
+	paths := make([]string, 0)
+	util.Walk(gjson.Parse(payloadStr), "", "parametersJsonSchema", &paths)
+	for _, p := range paths {
+		payloadStr, _ = util.RenameKey(payloadStr, p, p[:len(p)-len("parametersJsonSchema")]+"parameters")
+	}
+
+	if useAntigravitySchema {
+		payloadStr = util.CleanJSONSchemaForAntigravity(payloadStr)
+	} else {
+		payloadStr = util.CleanJSONSchemaForGemini(payloadStr)
+	}
+
+	if useAntigravitySchema {
+		systemInstructionPartsResult := gjson.Get(payloadStr, "request.systemInstruction.parts")
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.role", "user")
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.0.text", systemInstruction)
+		payloadStr, _ = sjson.Set(payloadStr, "request.systemInstruction.parts.1.text", fmt.Sprintf("Please ignore following [ignore]%s[/ignore]", systemInstruction))
+
+		if systemInstructionPartsResult.Exists() && systemInstructionPartsResult.IsArray() {
+			for _, partResult := range systemInstructionPartsResult.Array() {
+				payloadStr, _ = sjson.SetRaw(payloadStr, "request.systemInstruction.parts.-1", partResult.Raw)
+			}
+		}
+	}
+
+	if strings.Contains(modelName, "claude") {
+		payloadStr, _ = sjson.Set(payloadStr, "request.toolConfig.functionCallingConfig.mode", "VALIDATED")
+	} else {
+		payloadStr, _ = sjson.Delete(payloadStr, "request.generationConfig.maxOutputTokens")
+	}
+
+	httpReq, errReq := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), strings.NewReader(payloadStr))
+	if errReq != nil {
+		return nil, errReq
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("User-Agent", resolveUserAgent(auth))
+	if stream {
+		httpReq.Header.Set("Accept", "text/event-stream")
+	} else {
+		httpReq.Header.Set("Accept", "application/json")
+	}
+	if host := resolveHost(base); host != "" {
+		httpReq.Host = host
+	}
+
+	var authID, authLabel, authType, authValue string
+	if auth != nil {
+		authID = auth.ID
+		authLabel = auth.Label
+		authType, authValue = auth.AccountInfo()
+	}
+	var payloadLog []byte
+	if e.cfg != nil && e.cfg.RequestLog {
+		payloadLog = []byte(payloadStr)
+	}
+	recordAPIRequest(ctx, e.cfg, upstreamRequestLog{
+		URL:       requestURL.String(),
+		Method:    http.MethodPost,
+		Headers:   httpReq.Header.Clone(),
+		Body:      payloadLog,
+		Provider:  e.Identifier(),
+		AuthID:    authID,
+		AuthLabel: authLabel,
+		AuthType:  authType,
+		AuthValue: authValue,
+	})
+
+	return httpReq, nil
 }
