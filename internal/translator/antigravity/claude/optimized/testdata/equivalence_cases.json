@@ -1,0 +1,1140 @@
+{
+  "cases": [
+    {
+      "name": "simple_text_two_chunks",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_001",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 12,
+            "candidatesTokenCount": 18,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 30,
+            "cachedContentTokenCount": 2
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "hello world"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "cpaUsageMetadata": {
+              "promptTokenCount": 12,
+              "candidatesTokenCount": 0
+            },
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "hello "
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 12,
+              "candidatesTokenCount": 18,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 30,
+              "cachedContentTokenCount": 2
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "world"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "text_escape_chars",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_002",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 4,
+            "candidatesTokenCount": 7,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 11,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "line1\n\"quoted\" \\\\ slash"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 4,
+              "candidatesTokenCount": 7,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 11,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "line1\n\"quoted\" \\\\ slash"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "thinking_signature_camel_then_text",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_003",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 40,
+            "candidatesTokenCount": 30,
+            "thoughtsTokenCount": 10,
+            "totalTokenCount": 80,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "think step 1",
+                    "thought": true
+                  },
+                  {
+                    "text": "",
+                    "thought": true,
+                    "thoughtSignature": "sig_a_123456789012345678901234567890123456789012345678901234"
+                  },
+                  {
+                    "text": "final answer"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "think step 1",
+                      "thought": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "",
+                      "thought": true,
+                      "thoughtSignature": "sig_a_123456789012345678901234567890123456789012345678901234"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 40,
+              "candidatesTokenCount": 30,
+              "thoughtsTokenCount": 10,
+              "totalTokenCount": 80,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "final answer"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "thinking_signature_snake_stream_ignored",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_004",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 17,
+            "candidatesTokenCount": 12,
+            "thoughtsTokenCount": 8,
+            "totalTokenCount": 37,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "snake thinking",
+                    "thought": true
+                  },
+                  {
+                    "text": "",
+                    "thought": true,
+                    "thought_signature": "sig_b_123456789012345678901234567890123456789012345678901234"
+                  },
+                  {
+                    "text": "snake answer"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "snake thinking",
+                      "thought": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 17,
+              "candidatesTokenCount": 12,
+              "thoughtsTokenCount": 8,
+              "totalTokenCount": 37,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "",
+                      "thought": true,
+                      "thought_signature": "sig_b_123456789012345678901234567890123456789012345678901234"
+                    },
+                    {
+                      "text": "snake answer"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tool_use_object_args",
+      "request": {
+        "model": "claude-opus-4-1"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_005",
+          "modelVersion": "claude-opus-4-1",
+          "usageMetadata": {
+            "promptTokenCount": 23,
+            "candidatesTokenCount": 11,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 34,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "functionCall": {
+                      "name": "weather_lookup",
+                      "args": {
+                        "city": "Paris",
+                        "days": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 23,
+              "candidatesTokenCount": 11,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 34,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "functionCall": {
+                        "name": "weather_lookup",
+                        "args": {
+                          "city": "Paris",
+                          "days": 2
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tool_use_non_object_args_string",
+      "request": {
+        "model": "claude-opus-4-1"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_006",
+          "modelVersion": "claude-opus-4-1",
+          "usageMetadata": {
+            "promptTokenCount": 16,
+            "candidatesTokenCount": 7,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 23,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "functionCall": {
+                      "name": "raw_runner",
+                      "args": "raw-arg-string"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 16,
+              "candidatesTokenCount": 7,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 23,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "functionCall": {
+                        "name": "raw_runner",
+                        "args": "raw-arg-string"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "finish_reason_max_tokens",
+      "request": {
+        "model": "claude-3-5-sonnet-20241022"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_007",
+          "modelVersion": "claude-3-5-sonnet-20241022",
+          "usageMetadata": {
+            "promptTokenCount": 100,
+            "candidatesTokenCount": 50,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 150,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "MAX_TOKENS",
+              "content": {
+                "parts": [
+                  {
+                    "text": "partial text"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 100,
+              "candidatesTokenCount": 50,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 150,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "MAX_TOKENS",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "partial text"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "finish_reason_unknown_no_usage",
+      "request": {
+        "model": "claude-3-5-sonnet-20241022"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_008",
+          "modelVersion": "claude-3-5-sonnet-20241022",
+          "candidates": [
+            {
+              "finishReason": "UNKNOWN",
+              "content": {
+                "parts": [
+                  {
+                    "text": "fallback finish"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "candidates": [
+              {
+                "finishReason": "UNKNOWN",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "fallback finish"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "usage_fallback_candidates_zero",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_009",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 100,
+            "candidatesTokenCount": 0,
+            "thoughtsTokenCount": 20,
+            "totalTokenCount": 170,
+            "cachedContentTokenCount": 30
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "fallback output"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 100,
+              "candidatesTokenCount": 0,
+              "thoughtsTokenCount": 20,
+              "totalTokenCount": 170,
+              "cachedContentTokenCount": 30
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "fallback output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "empty_text_finish_no_content",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_010",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 0,
+            "candidatesTokenCount": 0,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 0,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": ""
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 0,
+              "candidatesTokenCount": 0,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 0,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": ""
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "multi_tool_and_text_transitions",
+      "request": {
+        "model": "claude-opus-4-1"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_011",
+          "modelVersion": "claude-opus-4-1",
+          "usageMetadata": {
+            "promptTokenCount": 88,
+            "candidatesTokenCount": 44,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 132,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "start "
+                  },
+                  {
+                    "functionCall": {
+                      "name": "fn_one",
+                      "args": {}
+                    }
+                  },
+                  {
+                    "functionCall": {
+                      "name": "fn_two",
+                      "args": {
+                        "x": 1,
+                        "y": "ok"
+                      }
+                    }
+                  },
+                  {
+                    "text": "end"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "start "
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "functionCall": {
+                        "name": "fn_one",
+                        "args": {}
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "functionCall": {
+                        "name": "fn_two",
+                        "args": {
+                          "x": 1,
+                          "y": "ok"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 88,
+              "candidatesTokenCount": 44,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 132,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "end"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "no_finish_with_usage_done_forced",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_012",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 14,
+            "candidatesTokenCount": 9,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 23,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "no finish field"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 14,
+              "candidatesTokenCount": 9,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 23,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "no finish field"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cpa_usage_initial_empty_then_content",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_013",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 222,
+            "candidatesTokenCount": 111,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 333,
+            "cachedContentTokenCount": 22
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "late content"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "cpaUsageMetadata": {
+              "promptTokenCount": 222,
+              "candidatesTokenCount": 111
+            },
+            "candidates": [
+              {
+                "content": {
+                  "parts": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 222,
+              "candidatesTokenCount": 111,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 333,
+              "cachedContentTokenCount": 22
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "late content"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed_large_parts_single_chunk",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_014",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 310,
+            "candidatesTokenCount": 207,
+            "thoughtsTokenCount": 90,
+            "totalTokenCount": 607,
+            "cachedContentTokenCount": 50
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "thinking alpha ",
+                    "thought": true
+                  },
+                  {
+                    "text": "thinking beta ",
+                    "thought": true
+                  },
+                  {
+                    "text": "",
+                    "thought": true,
+                    "thoughtSignature": "sig_c_123456789012345678901234567890123456789012345678901234"
+                  },
+                  {
+                    "text": "visible answer 1 "
+                  },
+                  {
+                    "functionCall": {
+                      "name": "calc",
+                      "args": {
+                        "op": "sum",
+                        "values": [
+                          1,
+                          2,
+                          3
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "text": "visible answer 2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 310,
+              "candidatesTokenCount": 207,
+              "thoughtsTokenCount": 90,
+              "totalTokenCount": 607,
+              "cachedContentTokenCount": 50
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "thinking alpha ",
+                      "thought": true
+                    },
+                    {
+                      "text": "thinking beta ",
+                      "thought": true
+                    },
+                    {
+                      "text": "",
+                      "thought": true,
+                      "thoughtSignature": "sig_c_123456789012345678901234567890123456789012345678901234"
+                    },
+                    {
+                      "text": "visible answer 1 "
+                    },
+                    {
+                      "functionCall": {
+                        "name": "calc",
+                        "args": {
+                          "op": "sum",
+                          "values": [
+                            1,
+                            2,
+                            3
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "text": "visible answer 2"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "stream_without_done_flag",
+      "include_done": false,
+      "request": {
+        "model": "claude-3-5-sonnet-20241022"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_015",
+          "modelVersion": "claude-3-5-sonnet-20241022",
+          "usageMetadata": {
+            "promptTokenCount": 11,
+            "candidatesTokenCount": 9,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 20,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "no done needed"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 11,
+              "candidatesTokenCount": 9,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 20,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "no done needed"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "unicode_escape_text_ascii_file",
+      "request": {
+        "model": "claude-sonnet-4-5-thinking"
+      },
+      "non_stream": {
+        "response": {
+          "responseId": "rs_016",
+          "modelVersion": "claude-sonnet-4-5-thinking",
+          "usageMetadata": {
+            "promptTokenCount": 21,
+            "candidatesTokenCount": 13,
+            "thoughtsTokenCount": 0,
+            "totalTokenCount": 34,
+            "cachedContentTokenCount": 0
+          },
+          "candidates": [
+            {
+              "finishReason": "STOP",
+              "content": {
+                "parts": [
+                  {
+                    "text": "hello \\u4f60\\u597d \\u003cjson\\u003e"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "stream_chunks": [
+        {
+          "response": {
+            "usageMetadata": {
+              "promptTokenCount": 21,
+              "candidatesTokenCount": 13,
+              "thoughtsTokenCount": 0,
+              "totalTokenCount": 34,
+              "cachedContentTokenCount": 0
+            },
+            "candidates": [
+              {
+                "finishReason": "STOP",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "hello \\u4f60\\u597d \\u003cjson\\u003e"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+
