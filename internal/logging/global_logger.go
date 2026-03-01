@@ -20,6 +20,7 @@ var (
 	setupOnce      sync.Once
 	writerMu       sync.Mutex
 	logWriter      *lumberjack.Logger
+	asyncLogWriter *AsyncOrderedWriter
 	ginInfoWriter  *io.PipeWriter
 	ginErrorWriter *io.PipeWriter
 )
@@ -153,30 +154,46 @@ func ConfigureLogOutput(cfg *config.Config) error {
 
 	logDir := ResolveLogDirectory(cfg)
 
+	var nextSink io.Writer = os.Stdout
+	var nextFileWriter *lumberjack.Logger
 	protectedPath := ""
 	if cfg.LoggingToFile {
 		if err := os.MkdirAll(logDir, 0o755); err != nil {
 			return fmt.Errorf("logging: failed to create log directory: %w", err)
 		}
-		if logWriter != nil {
-			_ = logWriter.Close()
-		}
 		protectedPath = filepath.Join(logDir, "main.log")
-		logWriter = &lumberjack.Logger{
+		nextFileWriter = &lumberjack.Logger{
 			Filename:   protectedPath,
 			MaxSize:    10,
 			MaxBackups: 0,
 			MaxAge:     0,
 			Compress:   false,
 		}
-		log.SetOutput(logWriter)
-	} else {
-		if logWriter != nil {
-			_ = logWriter.Close()
-			logWriter = nil
-		}
-		log.SetOutput(os.Stdout)
+		nextSink = nextFileWriter
 	}
+
+	nextAsyncWriter, err := NewAsyncOrderedWriter(nextSink, defaultAsyncLogQueueCapacity)
+	if err != nil {
+		if nextFileWriter != nil {
+			_ = nextFileWriter.Close()
+		}
+		return fmt.Errorf("logging: failed to initialize async output: %w", err)
+	}
+
+	if asyncLogWriter != nil {
+		if errClose := asyncLogWriter.Close(); errClose != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "logging: failed to close async log writer: %v\n", errClose)
+		}
+		asyncLogWriter = nil
+	}
+	if logWriter != nil {
+		_ = logWriter.Close()
+		logWriter = nil
+	}
+
+	logWriter = nextFileWriter
+	asyncLogWriter = nextAsyncWriter
+	log.SetOutput(asyncLogWriter)
 
 	configureLogDirCleanerLocked(logDir, cfg.LogsMaxTotalSizeMB, protectedPath)
 	return nil
@@ -188,6 +205,12 @@ func closeLogOutputs() {
 
 	stopLogDirCleanerLocked()
 
+	if asyncLogWriter != nil {
+		if errClose := asyncLogWriter.Close(); errClose != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "logging: failed to close async log writer: %v\n", errClose)
+		}
+		asyncLogWriter = nil
+	}
 	if logWriter != nil {
 		_ = logWriter.Close()
 		logWriter = nil

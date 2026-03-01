@@ -289,6 +289,7 @@ attemptLoop:
 						continue attemptLoop
 					}
 				}
+				log.Warnf("antigravity executor: upstream error status %d for model %s: %s", httpResp.StatusCode, baseModel, summarizeErrorBody(httpResp.Header.Get("Content-Type"), bodyBytes))
 				sErr := statusErr{code: httpResp.StatusCode, msg: string(bodyBytes)}
 				if httpResp.StatusCode == http.StatusTooManyRequests {
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
@@ -422,6 +423,7 @@ attemptLoop:
 					return resp, err
 				}
 				appendAPIResponseChunk(ctx, e.cfg, bodyBytes)
+				log.Debugf("antigravity executor: upstream error status: %d, body: %s", httpResp.StatusCode, summarizeErrorBody(httpResp.Header.Get("Content-Type"), bodyBytes))
 				lastStatus = httpResp.StatusCode
 				lastBody = append([]byte(nil), bodyBytes...)
 				lastErr = nil
@@ -443,6 +445,7 @@ attemptLoop:
 						continue attemptLoop
 					}
 				}
+				log.Warnf("antigravity executor: upstream error status %d for model %s: %s", httpResp.StatusCode, baseModel, summarizeErrorBody(httpResp.Header.Get("Content-Type"), bodyBytes))
 				sErr := statusErr{code: httpResp.StatusCode, msg: string(bodyBytes)}
 				if httpResp.StatusCode == http.StatusTooManyRequests {
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
@@ -483,6 +486,7 @@ attemptLoop:
 					out <- cliproxyexecutor.StreamChunk{Payload: payload}
 				}
 				if errScan := scanner.Err(); errScan != nil {
+					log.Warnf("antigravity executor: stream scan error for model %s: %v", baseModel, errScan)
 					recordAPIResponseError(ctx, e.cfg, errScan)
 					reporter.publishFailure(ctx)
 					out <- cliproxyexecutor.StreamChunk{Err: errScan}
@@ -813,6 +817,7 @@ attemptLoop:
 					return nil, err
 				}
 				appendAPIResponseChunk(ctx, e.cfg, bodyBytes)
+				log.Debugf("antigravity executor: upstream error status: %d, body: %s", httpResp.StatusCode, summarizeErrorBody(httpResp.Header.Get("Content-Type"), bodyBytes))
 				lastStatus = httpResp.StatusCode
 				lastBody = append([]byte(nil), bodyBytes...)
 				lastErr = nil
@@ -834,6 +839,7 @@ attemptLoop:
 						continue attemptLoop
 					}
 				}
+				log.Warnf("antigravity executor: upstream error status %d for model %s: %s", httpResp.StatusCode, baseModel, summarizeErrorBody(httpResp.Header.Get("Content-Type"), bodyBytes))
 				sErr := statusErr{code: httpResp.StatusCode, msg: string(bodyBytes)}
 				if httpResp.StatusCode == http.StatusTooManyRequests {
 					if retryAfter, parseErr := parseRetryDelay(bodyBytes); parseErr == nil && retryAfter != nil {
@@ -882,6 +888,7 @@ attemptLoop:
 					out <- cliproxyexecutor.StreamChunk{Payload: []byte(tail[i])}
 				}
 				if errScan := scanner.Err(); errScan != nil {
+					log.Warnf("antigravity executor: stream scan error for model %s: %v", baseModel, errScan)
 					recordAPIResponseError(ctx, e.cfg, errScan)
 					reporter.publishFailure(ctx)
 					out <- cliproxyexecutor.StreamChunk{Err: errScan}
