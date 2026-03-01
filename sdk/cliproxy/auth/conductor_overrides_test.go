@@ -217,3 +217,55 @@ func TestManager_MarkResult_RespectsAuthDisableCoolingOverride(t *testing.T) {
 		t.Fatalf("expected NextRetryAfter to be zero when disable_cooling=true, got %v", state.NextRetryAfter)
 	}
 }
+
+func TestManager_MarkResult_AuthFailures401To403Use24HourCooldown(t *testing.T) {
+	testCases := []struct {
+		name   string
+		status int
+	}{
+		{name: "unauthorized_401", status: http.StatusUnauthorized},
+		{name: "payment_required_402", status: http.StatusPaymentRequired},
+		{name: "forbidden_403", status: http.StatusForbidden},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewManager(nil, nil, nil)
+			authID := "auth-cooldown-" + tc.name
+			auth := &Auth{
+				ID:       authID,
+				Provider: "claude",
+			}
+			if _, errRegister := m.Register(context.Background(), auth); errRegister != nil {
+				t.Fatalf("register auth: %v", errRegister)
+			}
+
+			model := "cooldown-model-" + tc.name
+			before := time.Now()
+			m.MarkResult(context.Background(), Result{
+				AuthID:   authID,
+				Provider: "claude",
+				Model:    model,
+				Success:  false,
+				Error:    &Error{HTTPStatus: tc.status, Message: "boom"},
+			})
+			after := time.Now()
+
+			updated, ok := m.GetByID(authID)
+			if !ok || updated == nil {
+				t.Fatalf("expected auth to be present")
+			}
+			state := updated.ModelStates[model]
+			if state == nil {
+				t.Fatalf("expected model state to be present")
+			}
+
+			lowerBound := before.Add(24*time.Hour - time.Second)
+			upperBound := after.Add(24*time.Hour + time.Second)
+			if state.NextRetryAfter.Before(lowerBound) || state.NextRetryAfter.After(upperBound) {
+				t.Fatalf("NextRetryAfter = %v, want around 24h cooldown (%v ~ %v)", state.NextRetryAfter, lowerBound, upperBound)
+			}
+		})
+	}
+}
