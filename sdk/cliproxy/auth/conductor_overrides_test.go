@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
 )
 
@@ -124,12 +123,6 @@ func newCredentialRetryLimitTestManager(t *testing.T, maxRetryCredentials int) (
 	if _, errRegister := m.Register(context.Background(), auth2); errRegister != nil {
 		t.Fatalf("register auth2: %v", errRegister)
 	}
-	registry.GetGlobalRegistry().RegisterClient(auth1.ID, auth1.Provider, []*registry.ModelInfo{{ID: "test-model"}})
-	registry.GetGlobalRegistry().RegisterClient(auth2.ID, auth2.Provider, []*registry.ModelInfo{{ID: "test-model"}})
-	t.Cleanup(func() {
-		registry.GetGlobalRegistry().UnregisterClient(auth1.ID)
-		registry.GetGlobalRegistry().UnregisterClient(auth2.ID)
-	})
 
 	return m, executor
 }

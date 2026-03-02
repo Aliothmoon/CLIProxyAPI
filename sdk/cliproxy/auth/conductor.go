@@ -762,9 +762,6 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 			if errCtx := execCtx.Err(); errCtx != nil {
 				return nil, errCtx
 			}
-			if isContextCancellationError(errStream) {
-				return nil, errStream
-			}
 			rerr := &Error{Message: errStream.Error()}
 			if se, ok := errors.AsType[cliproxyexecutor.StatusError](errStream); ok && se != nil {
 				rerr.HTTPStatus = se.StatusCode()
@@ -781,18 +778,16 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 		out := make(chan cliproxyexecutor.StreamChunk)
 		go func(streamCtx context.Context, streamAuth *Auth, streamProvider string, streamChunks <-chan cliproxyexecutor.StreamChunk) {
 			defer close(out)
-			var terminalResultHandled bool
+			var failed bool
 			forward := true
 			for chunk := range streamChunks {
-				if chunk.Err != nil && !terminalResultHandled {
-					terminalResultHandled = true
-					if !isContextCancellationError(chunk.Err) {
-						rerr := &Error{Message: chunk.Err.Error()}
-						if se, ok := errors.AsType[cliproxyexecutor.StatusError](chunk.Err); ok && se != nil {
-							rerr.HTTPStatus = se.StatusCode()
-						}
-						m.MarkResult(streamCtx, Result{AuthID: streamAuth.ID, Provider: streamProvider, Model: routeModel, Success: false, Error: rerr})
+				if chunk.Err != nil && !failed {
+					failed = true
+					rerr := &Error{Message: chunk.Err.Error()}
+					if se, ok := errors.AsType[cliproxyexecutor.StatusError](chunk.Err); ok && se != nil {
+						rerr.HTTPStatus = se.StatusCode()
 					}
+					m.MarkResult(streamCtx, Result{AuthID: streamAuth.ID, Provider: streamProvider, Model: routeModel, Success: false, Error: rerr})
 				}
 				if !forward {
 					continue
@@ -807,7 +802,7 @@ func (m *Manager) executeStreamMixedOnce(ctx context.Context, providers []string
 				case out <- chunk:
 				}
 			}
-			if !terminalResultHandled {
+			if !failed {
 				m.MarkResult(streamCtx, Result{AuthID: streamAuth.ID, Provider: streamProvider, Model: routeModel, Success: true})
 			}
 		}(execCtx, auth.Clone(), provider, streamResult.Chunks)
@@ -1545,13 +1540,6 @@ func isRequestInvalidError(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "invalid_request_error")
-}
-
-func isContextCancellationError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Duration, now time.Time) {

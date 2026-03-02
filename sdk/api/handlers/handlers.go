@@ -6,7 +6,6 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -51,7 +50,6 @@ const idempotencyKeyMetadataKey = "idempotency_key"
 const (
 	defaultStreamingKeepAliveSeconds = 0
 	defaultStreamingBootstrapRetries = 0
-	statusClientClosedRequest        = 499
 )
 
 type pinnedAuthContextKey struct{}
@@ -493,8 +491,18 @@ func (h *BaseAPIHandler) ExecuteWithAuthManager(ctx context.Context, handlerType
 	opts.Metadata = reqMeta
 	resp, err := h.AuthManager.Execute(ctx, providers, req, opts)
 	if err != nil {
-		status := errorStatusOrDefault(err, http.StatusInternalServerError)
-		addon := headersFromError(err)
+		status := http.StatusInternalServerError
+		if se, ok := err.(interface{ StatusCode() int }); ok && se != nil {
+			if code := se.StatusCode(); code > 0 {
+				status = code
+			}
+		}
+		var addon http.Header
+		if he, ok := err.(interface{ Headers() http.Header }); ok && he != nil {
+			if hdr := he.Headers(); hdr != nil {
+				addon = hdr.Clone()
+			}
+		}
 		return nil, nil, &interfaces.ErrorMessage{StatusCode: status, Error: err, Addon: addon}
 	}
 	if !PassthroughHeadersEnabled(h.Cfg) {
@@ -529,8 +537,18 @@ func (h *BaseAPIHandler) ExecuteCountWithAuthManager(ctx context.Context, handle
 	opts.Metadata = reqMeta
 	resp, err := h.AuthManager.ExecuteCount(ctx, providers, req, opts)
 	if err != nil {
-		status := errorStatusOrDefault(err, http.StatusInternalServerError)
-		addon := headersFromError(err)
+		status := http.StatusInternalServerError
+		if se, ok := err.(interface{ StatusCode() int }); ok && se != nil {
+			if code := se.StatusCode(); code > 0 {
+				status = code
+			}
+		}
+		var addon http.Header
+		if he, ok := err.(interface{ Headers() http.Header }); ok && he != nil {
+			if hdr := he.Headers(); hdr != nil {
+				addon = hdr.Clone()
+			}
+		}
 		return nil, nil, &interfaces.ErrorMessage{StatusCode: status, Error: err, Addon: addon}
 	}
 	if !PassthroughHeadersEnabled(h.Cfg) {
@@ -570,8 +588,18 @@ func (h *BaseAPIHandler) ExecuteStreamWithAuthManager(ctx context.Context, handl
 	streamResult, err := h.AuthManager.ExecuteStream(ctx, providers, req, opts)
 	if err != nil {
 		errChan := make(chan *interfaces.ErrorMessage, 1)
-		status := errorStatusOrDefault(err, http.StatusInternalServerError)
-		addon := headersFromError(err)
+		status := http.StatusInternalServerError
+		if se, ok := err.(interface{ StatusCode() int }); ok && se != nil {
+			if code := se.StatusCode(); code > 0 {
+				status = code
+			}
+		}
+		var addon http.Header
+		if he, ok := err.(interface{ Headers() http.Header }); ok && he != nil {
+			if hdr := he.Headers(); hdr != nil {
+				addon = hdr.Clone()
+			}
+		}
 		errChan <- &interfaces.ErrorMessage{StatusCode: status, Error: err, Addon: addon}
 		close(errChan)
 		return nil, nil, errChan
@@ -672,8 +700,18 @@ func (h *BaseAPIHandler) ExecuteStreamWithAuthManager(ctx context.Context, handl
 						}
 					}
 
-					status := errorStatusOrDefault(streamErr, http.StatusInternalServerError)
-					addon := headersFromError(streamErr)
+					status := http.StatusInternalServerError
+					if se, ok := streamErr.(interface{ StatusCode() int }); ok && se != nil {
+						if code := se.StatusCode(); code > 0 {
+							status = code
+						}
+					}
+					var addon http.Header
+					if he, ok := streamErr.(interface{ Headers() http.Header }); ok && he != nil {
+						if hdr := he.Headers(); hdr != nil {
+							addon = hdr.Clone()
+						}
+					}
 					_ = sendErr(&interfaces.ErrorMessage{StatusCode: status, Error: streamErr, Addon: addon})
 					return
 				}
@@ -728,40 +766,12 @@ func statusFromError(err error) int {
 	if err == nil {
 		return 0
 	}
-	if errors.Is(err, context.Canceled) {
-		return statusClientClosedRequest
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return http.StatusRequestTimeout
-	}
 	if se, ok := err.(interface{ StatusCode() int }); ok && se != nil {
 		if code := se.StatusCode(); code > 0 {
 			return code
 		}
 	}
 	return 0
-}
-
-func errorStatusOrDefault(err error, fallback int) int {
-	if status := statusFromError(err); status > 0 {
-		return status
-	}
-	if fallback > 0 {
-		return fallback
-	}
-	return http.StatusInternalServerError
-}
-
-func headersFromError(err error) http.Header {
-	if err == nil {
-		return nil
-	}
-	if he, ok := err.(interface{ Headers() http.Header }); ok && he != nil {
-		if hdr := he.Headers(); hdr != nil {
-			return hdr.Clone()
-		}
-	}
-	return nil
 }
 
 func (h *BaseAPIHandler) getRequestDetails(modelName string) (providers []string, normalizedModel string, err *interfaces.ErrorMessage) {
