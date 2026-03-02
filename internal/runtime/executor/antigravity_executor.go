@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudwego/gjson"
 	"github.com/google/uuid"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/registry"
@@ -31,7 +32,6 @@ import (
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/executor"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v6/sdk/translator"
 	log "github.com/sirupsen/logrus"
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -482,7 +482,7 @@ attemptLoop:
 						continue
 					}
 
-					if detail, ok := parseAntigravityStreamUsage(payload); ok {
+					if detail, ok := parseAntigravityStreamUsageOptimized(payload); ok {
 						reporter.publish(ctx, detail)
 					}
 
@@ -880,7 +880,7 @@ attemptLoop:
 						continue
 					}
 
-					if detail, ok := parseAntigravityStreamUsage(payload); ok {
+					if detail, ok := parseAntigravityStreamUsageOptimized(payload); ok {
 						reporter.publish(ctx, detail)
 					}
 

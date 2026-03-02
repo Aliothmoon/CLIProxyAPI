@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/tidwall/gjson"
+	"github.com/cloudwego/gjson"
 	"github.com/tidwall/sjson"
 )
 

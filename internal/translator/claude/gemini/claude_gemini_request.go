@@ -13,10 +13,10 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/cloudwego/gjson"
 	"github.com/google/uuid"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/thinking"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudwego/gjson"
 	"github.com/gin-gonic/gin"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/auth"
 	"github.com/router-for-me/CLIProxyAPI/v6/sdk/cliproxy/usage"
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -377,6 +377,25 @@ func parseAntigravityUsage(data []byte) usage.Detail {
 func parseAntigravityStreamUsage(line []byte) (usage.Detail, bool) {
 	payload := jsonPayload(line)
 	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return usage.Detail{}, false
+	}
+	node := gjson.GetBytes(payload, "response.usageMetadata")
+	if !node.Exists() {
+		node = gjson.GetBytes(payload, "usageMetadata")
+	}
+	if !node.Exists() {
+		node = gjson.GetBytes(payload, "usage_metadata")
+	}
+	if !node.Exists() {
+		return usage.Detail{}, false
+	}
+	return parseGeminiFamilyUsageDetail(node), true
+}
+
+// parseAntigravityStreamUsageOptimized accepts already-extracted JSON payload
+// (via jsonPayload), skipping the redundant jsonPayload + ValidBytes calls.
+func parseAntigravityStreamUsageOptimized(payload []byte) (usage.Detail, bool) {
+	if len(payload) == 0 {
 		return usage.Detail{}, false
 	}
 	node := gjson.GetBytes(payload, "response.usageMetadata")

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tidwall/gjson"
+	"github.com/cloudwego/gjson"
 	"github.com/tidwall/sjson"
 )
 
